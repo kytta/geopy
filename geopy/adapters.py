@@ -778,11 +778,22 @@ class HttpxAsyncAdapter(BaseAsyncAdapter):
 
     async def get_json(self, url, *, timeout, headers):
         response = await self._request(url, timeout=timeout, headers=headers)
-        return response.json()
+        try:
+            return response.json()
+        except json.decoder.JSONDecodeError as error:
+            raise GeocoderParseError from error
 
     async def _request(self, url, *, timeout, headers):
-        return await self.client.get(
+        response = await self.client.get(
             url,
             timeout=httpx.Timeout(timeout),
             headers=headers
         )
+        if response.status_code >= 400:
+            raise AdapterHTTPError(
+                "Non-successful status code %s" % response.status_code,
+                status_code=response.status_code,
+                headers=response.headers,
+                text=response.text,
+            )
+        return response
